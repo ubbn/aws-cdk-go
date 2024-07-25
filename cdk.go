@@ -2,6 +2,10 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
+	"github.com/aws/aws-cdk-go/awscdkapigatewayv2alpha/v2"
+	"github.com/aws/aws-cdk-go/awscdkapigatewayv2integrationsalpha/v2"
+	"github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2"
 
 	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
@@ -21,10 +25,21 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 
 	// The code that defines your stack goes here
 
-	// example resource
-	// queue := awssqs.NewQueue(stack, jsii.String("CdkQueue"), &awssqs.QueueProps{
-	// 	VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
-	// })
+	apigw := awscdkapigatewayv2alpha.NewHttpApi(stack, jsii.String("image-gen-http-api"), nil)
+
+	function := awscdklambdagoalpha.NewGoFunction(stack, jsii.String("my-jwt-auth"),
+		&awscdklambdagoalpha.GoFunctionProps{
+			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
+			Entry:   jsii.String("lambda-app"),
+			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
+		})
+	functionIntg := awscdkapigatewayv2integrationsalpha.NewHttpLambdaIntegration(jsii.String("myfunction-integration"), function, nil)
+	apigw.AddRoutes(&awscdkapigatewayv2alpha.AddRoutesOptions{
+		Path:        jsii.String("/"),
+		Methods:     &[]awscdkapigatewayv2alpha.HttpMethod{awscdkapigatewayv2alpha.HttpMethod_POST},
+		Integration: functionIntg})
+
+	awscdk.NewCfnOutput(stack, jsii.String("apigw URL"), &awscdk.CfnOutputProps{Value: apigw.Url(), Description: jsii.String("API Gateway endpoint")})
 
 	return stack
 }
