@@ -12,6 +12,11 @@ import (
 	"github.com/aws/jsii-runtime-go"
 )
 
+const (
+	prefix        = "jwt-"
+	defaultRegion = "eu-west-1"
+)
+
 type CdkStackProps struct {
 	awscdk.StackProps
 }
@@ -24,22 +29,27 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
 	// The code that defines your stack goes here
+	apigw := awscdkapigatewayv2alpha.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), nil)
 
-	apigw := awscdkapigatewayv2alpha.NewHttpApi(stack, jsii.String("image-gen-http-api"), nil)
-
-	function := awscdklambdagoalpha.NewGoFunction(stack, jsii.String("my-jwt-auth"),
+	function := awscdklambdagoalpha.NewGoFunction(stack, jsii.String(prefix+"func"),
 		&awscdklambdagoalpha.GoFunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
 			Entry:   jsii.String("lambda-app"),
 			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
 		})
-	functionIntg := awscdkapigatewayv2integrationsalpha.NewHttpLambdaIntegration(jsii.String("myfunction-integration"), function, nil)
+
+	functionIntg := awscdkapigatewayv2integrationsalpha.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, nil)
+
 	apigw.AddRoutes(&awscdkapigatewayv2alpha.AddRoutesOptions{
 		Path:        jsii.String("/"),
 		Methods:     &[]awscdkapigatewayv2alpha.HttpMethod{awscdkapigatewayv2alpha.HttpMethod_POST},
 		Integration: functionIntg})
 
-	awscdk.NewCfnOutput(stack, jsii.String("apigw URL"), &awscdk.CfnOutputProps{Value: apigw.Url(), Description: jsii.String("API Gateway endpoint")})
+	awscdk.NewCfnOutput(
+		stack, jsii.String(prefix+"apigw URL"),
+		&awscdk.CfnOutputProps{Value: apigw.Url(),
+			Description: jsii.String("API Gateway endpoint")},
+	)
 
 	return stack
 }
@@ -71,8 +81,7 @@ func env() *awscdk.Environment {
 	// the stack to. This is the recommendation for production stacks.
 	//---------------------------------------------------------------------------
 	return &awscdk.Environment{
-		//  Account: jsii.String("123456789012"),
-		Region: jsii.String("eu-west-1"),
+		Region: jsii.String(defaultRegion),
 	}
 
 	// Uncomment to specialize this stack for the AWS Account and Region that are
