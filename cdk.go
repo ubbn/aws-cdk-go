@@ -2,10 +2,10 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2integrations"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
-	"github.com/aws/aws-cdk-go/awscdkapigatewayv2alpha/v2"
-	"github.com/aws/aws-cdk-go/awscdkapigatewayv2integrationsalpha/v2"
-	"github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
 
 	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
@@ -29,21 +29,33 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
 	// The code that defines your stack goes here
-	apigw := awscdkapigatewayv2alpha.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), nil)
+	apigw := awsapigatewayv2.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), nil)
 
-	function := awscdklambdagoalpha.NewGoFunction(stack, jsii.String(prefix+"func"),
-		&awscdklambdagoalpha.GoFunctionProps{
+	function := awslambda.NewFunction(stack, jsii.String(prefix+"func"),
+		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Entry:   jsii.String("lambda-app"),
+			Code: awslambda.Code_FromAsset(jsii.String("lambda-app"), &awss3assets.AssetOptions{
+				Bundling: &awscdk.BundlingOptions{
+					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
+					Command: &[]*string{
+						jsii.String("bash"),
+						jsii.String("-c"),
+						jsii.String("export GOCACHE=/tmp/.cache && export GOPATH=/tmp/go && go build -o /asset-output"),
+					},
+				},
+			}),
+			Handler: jsii.String("index.main"),
 			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
-		})
+		},
+	)
 
-	functionIntg := awscdkapigatewayv2integrationsalpha.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, nil)
+	functionIntg := awsapigatewayv2integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, nil)
 
-	apigw.AddRoutes(&awscdkapigatewayv2alpha.AddRoutesOptions{
+	apigw.AddRoutes(&awsapigatewayv2.AddRoutesOptions{
 		Path:        jsii.String("/"),
-		Methods:     &[]awscdkapigatewayv2alpha.HttpMethod{awscdkapigatewayv2alpha.HttpMethod_POST},
-		Integration: functionIntg})
+		Methods:     &[]awsapigatewayv2.HttpMethod{awsapigatewayv2.HttpMethod_POST},
+		Integration: functionIntg,
+	})
 
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"apigw URL"),
@@ -59,7 +71,7 @@ func main() {
 
 	app := awscdk.NewApp(nil)
 
-	NewCdkStack(app, "MyGoStack", &CdkStackProps{
+	NewCdkStack(app, "FireStack", &CdkStackProps{
 		awscdk.StackProps{
 			Env: env(),
 		},
