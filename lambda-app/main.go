@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
 	"net/http"
 
@@ -11,8 +12,16 @@ import (
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 
-	prompt := req.Body
-	log.Println("input -", prompt)
+	payload := req.Body
+
+	log.Println("Raw body: ", payload)
+
+	data, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		log.Fatal("error:", err)
+	}
+
+	log.Printf("Decoded: %q\n", data)
 
 	return events.APIGatewayV2HTTPResponse{
 		StatusCode:      http.StatusOK,

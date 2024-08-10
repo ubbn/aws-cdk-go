@@ -29,7 +29,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
 	// The code that defines your stack goes here
-	apigw := awsapigatewayv2.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), nil)
+	apigw := awsapigatewayv2.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), &awsapigatewayv2.HttpApiProps{})
 
 	function := awslambda.NewFunction(stack, jsii.String(prefix+"func"),
 		&awslambda.FunctionProps{
@@ -37,10 +37,14 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 			Code: awslambda.Code_FromAsset(jsii.String("lambda-app"), &awss3assets.AssetOptions{
 				Bundling: &awscdk.BundlingOptions{
 					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
+					Environment: &map[string]*string{
+						"GOCACHE": jsii.String("/tmp/.cache"),
+						"GOPATH":  jsii.String("/tmp/go"),
+					},
 					Command: &[]*string{
 						jsii.String("bash"),
 						jsii.String("-c"),
-						jsii.String("export GOCACHE=/tmp/.cache && export GOPATH=/tmp/go && go build -o /asset-output"),
+						jsii.String("go build -o /asset-output"),
 					},
 				},
 			}),
@@ -49,7 +53,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		},
 	)
 
-	functionIntg := awsapigatewayv2integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, nil)
+	functionIntg := awsapigatewayv2integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, &awsapigatewayv2integrations.HttpLambdaIntegrationProps{})
 
 	apigw.AddRoutes(&awsapigatewayv2.AddRoutesOptions{
 		Path:        jsii.String("/"),
@@ -57,6 +61,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Integration: functionIntg,
 	})
 
+	// Output API gateway URL
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"apigw URL"),
 		&awscdk.CfnOutputProps{Value: apigw.Url(),
@@ -71,7 +76,7 @@ func main() {
 
 	app := awscdk.NewApp(nil)
 
-	NewCdkStack(app, "FireStack", &CdkStackProps{
+	NewCdkStack(app, "ValidatorStack", &CdkStackProps{
 		awscdk.StackProps{
 			Env: env(),
 		},
