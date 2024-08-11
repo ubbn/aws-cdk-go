@@ -34,7 +34,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	function := awslambda.NewFunction(stack, jsii.String(prefix+"func"),
 		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Code: awslambda.Code_FromAsset(jsii.String("lambda-app"), &awss3assets.AssetOptions{
+			Code: awslambda.Code_FromAsset(jsii.String("lambda/app"), &awss3assets.AssetOptions{
 				Bundling: &awscdk.BundlingOptions{
 					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
 					Environment: &map[string]*string{

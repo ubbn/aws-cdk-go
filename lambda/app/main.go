@@ -25,7 +25,7 @@ func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.AP
 
 	return events.APIGatewayV2HTTPResponse{
 		StatusCode:      http.StatusOK,
-		Body:            "image",
+		Body:            "Success",
 		IsBase64Encoded: false,
 		Headers: map[string]string{
 			"Access-Control-Allow-Origin":  "*",
