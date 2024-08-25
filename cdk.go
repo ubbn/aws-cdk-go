@@ -2,12 +2,11 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2integrations"
+	apigateway "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
+	authorizers "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2authorizers"
+	integrations "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2integrations"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
-
-	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
@@ -28,13 +27,47 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	// The code that defines your stack goes here
-	apigw := awsapigatewayv2.NewHttpApi(stack, jsii.String(prefix+"http-apigateway"), &awsapigatewayv2.HttpApiProps{})
+	// Http Apigateway
+	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{})
 
-	function := awslambda.NewFunction(stack, jsii.String(prefix+"func"),
+	// Create lambda authorizer function
+	authorizer := createFunc(stack, "authorizer", "lambda/auth")
+
+	lambdaAUthorizer := authorizers.NewHttpLambdaAuthorizer(jsii.String("authorizer-func"), authorizer,
+		&authorizers.HttpLambdaAuthorizerProps{ResponseTypes: &[]authorizers.HttpLambdaResponseType{
+			authorizers.HttpLambdaResponseType_SIMPLE,
+		}})
+
+	handler := createFunc(stack, "handler", "lambda/app")
+
+	functionIntg := integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), handler,
+		&integrations.HttpLambdaIntegrationProps{
+			Timeout: awscdk.Duration_Seconds(jsii.Number(25)),
+		})
+
+	apigw.AddRoutes(&apigateway.AddRoutesOptions{
+		Path:        jsii.String("/"),
+		Methods:     &[]apigateway.HttpMethod{apigateway.HttpMethod_POST},
+		Integration: functionIntg,
+		Authorizer:  lambdaAUthorizer,
+	})
+
+	// Output API gateway URL
+	awscdk.NewCfnOutput(
+		stack, jsii.String(prefix+"apigw URL"),
+		&awscdk.CfnOutputProps{Value: apigw.Url(),
+			Description: jsii.String("API Gateway endpoint")},
+	)
+
+	return stack
+}
+
+// Create aws lambda function from given source adn with given name
+func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Function {
+	return awslambda.NewFunction(stack, jsii.String(prefix+name),
 		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Code: awslambda.Code_FromAsset(jsii.String("lambda/app"), &awss3assets.AssetOptions{
+			Code: awslambda.Code_FromAsset(jsii.String(sourcePath), &awss3assets.AssetOptions{
 				Bundling: &awscdk.BundlingOptions{
 					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
 					Environment: &map[string]*string{
@@ -52,23 +85,6 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
 		},
 	)
-
-	functionIntg := awsapigatewayv2integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), function, &awsapigatewayv2integrations.HttpLambdaIntegrationProps{})
-
-	apigw.AddRoutes(&awsapigatewayv2.AddRoutesOptions{
-		Path:        jsii.String("/"),
-		Methods:     &[]awsapigatewayv2.HttpMethod{awsapigatewayv2.HttpMethod_POST},
-		Integration: functionIntg,
-	})
-
-	// Output API gateway URL
-	awscdk.NewCfnOutput(
-		stack, jsii.String(prefix+"apigw URL"),
-		&awscdk.CfnOutputProps{Value: apigw.Url(),
-			Description: jsii.String("API Gateway endpoint")},
-	)
-
-	return stack
 }
 
 func main() {
@@ -88,15 +104,6 @@ func main() {
 // env determines the AWS environment (account+region) in which our stack is to
 // be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 func env() *awscdk.Environment {
-	// If unspecified, this stack will be "environment-agnostic".
-	// Account/Region-dependent features and context lookups will not work, but a
-	// single synthesized template can be deployed anywhere.
-	//---------------------------------------------------------------------------
-	// return nil
-
-	// Uncomment if you know exactly what account and region you want to deploy
-	// the stack to. This is the recommendation for production stacks.
-	//---------------------------------------------------------------------------
 	return &awscdk.Environment{
 		Region: jsii.String(defaultRegion),
 	}
