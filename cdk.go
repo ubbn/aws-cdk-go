@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	apigateway "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
 	authorizers "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2authorizers"
@@ -47,7 +50,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 
 	apigw.AddRoutes(&apigateway.AddRoutesOptions{
 		Path:        jsii.String("/"),
-		Methods:     &[]apigateway.HttpMethod{apigateway.HttpMethod_POST},
+		Methods:     &[]apigateway.HttpMethod{apigateway.HttpMethod_GET, apigateway.HttpMethod_POST},
 		Integration: functionIntg,
 		Authorizer:  lambdaAUthorizer,
 	})
@@ -90,7 +93,7 @@ func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Fu
 func main() {
 	defer jsii.Close()
 
-	app := awscdk.NewApp(nil)
+	app := awscdk.NewApp(&awscdk.AppProps{})
 
 	NewCdkStack(app, "ValidatorStack", &CdkStackProps{
 		awscdk.StackProps{
@@ -101,19 +104,19 @@ func main() {
 	app.Synth(nil)
 }
 
-// env determines the AWS environment (account+region) in which our stack is to
+// env determines the AWS environment region in which our stack is to
 // be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 func env() *awscdk.Environment {
-	return &awscdk.Environment{
-		Region: jsii.String(defaultRegion),
+	// Read AWS_REGION env var
+	region, isPresent := os.LookupEnv("AWS_REGION")
+	if !isPresent {
+		// Read region of chosen cdk CLI profile or fallback to default profile
+		region = os.Getenv("CDK_DEFAULT_REGION")
 	}
 
-	// Uncomment to specialize this stack for the AWS Account and Region that are
-	// implied by the current CLI configuration. This is recommended for dev
-	// stacks.
-	//---------------------------------------------------------------------------
-	// return &awscdk.Environment{
-	//  Account: jsii.String(os.Getenv("CDK_DEFAULT_ACCOUNT")),
-	//  Region:  jsii.String(os.Getenv("CDK_DEFAULT_REGION")),
-	// }
+	fmt.Println("Deploying to region: ", region)
+
+	return &awscdk.Environment{
+		Region: jsii.String(region),
+	}
 }
