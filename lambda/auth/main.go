@@ -10,6 +10,11 @@ import (
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2CustomAuthorizerSimpleResponse, error) {
 
+	log.Println("Full req: ", req)
+	log.Println("Full ctx: ", req.RequestContext)
+	log.Println("RequestId: ", req.RequestContext.RequestID)
+	log.Println("SourceIP: ", req.RequestContext.HTTP.SourceIP)
+	log.Println("Epoch: ", req.RequestContext.TimeEpoch)
 	log.Println("Authentication part: ", req.Headers["authorization"])
 
 	return events.APIGatewayV2CustomAuthorizerSimpleResponse{

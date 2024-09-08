@@ -8,6 +8,7 @@ import (
 	apigateway "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
 	authorizers "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2authorizers"
 	integrations "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2integrations"
+	dynamodb "github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
 	"github.com/aws/constructs-go/constructs/v10"
@@ -32,6 +33,12 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 
 	// Http Apigateway
 	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{})
+	apigw.AddStage(jsii.String("prod"), &apigateway.HttpStageOptions{
+		Throttle: &apigateway.ThrottleSettings{
+			BurstLimit: jsii.Number(101),
+			RateLimit:  jsii.Number(152),
+		},
+	})
 
 	// Create lambda authorizer function
 	authorizer := createFunc(stack, "authorizer", "lambda/auth")
@@ -55,6 +62,13 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Authorizer:  lambdaAUthorizer,
 	})
 
+	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
+		PartitionKey: &dynamodb.Attribute{
+			Name: jsii.String("pk"),
+			Type: dynamodb.AttributeType_STRING,
+		},
+	})
+
 	// Output API gateway URL
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"apigw URL"),
@@ -62,6 +76,12 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 			Description: jsii.String("API Gateway endpoint")},
 	)
 
+	// Output DynamoDB name
+	awscdk.NewCfnOutput(
+		stack, jsii.String(prefix+"dynamodb-name"),
+		&awscdk.CfnOutputProps{Value: table.TableArn(),
+			Description: jsii.String("DynamoDB name")},
+	)
 	return stack
 }
 
