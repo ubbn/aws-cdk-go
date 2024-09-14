@@ -18,6 +18,8 @@ import (
 const (
 	prefix        = "jwt-"
 	defaultRegion = "eu-west-1"
+	burstLimit    = 50  // Limit concurrent requests processing
+	rateLimit     = 100 // Limit incoming requests when burst is taking an effect
 )
 
 type CdkStackProps struct {
@@ -32,11 +34,18 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
 	// Http Apigateway
-	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{})
-	apigw.AddStage(jsii.String("prod"), &apigateway.HttpStageOptions{
+	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{
+		CreateDefaultStage: jsii.Bool(false), // Create own stage below
+	})
+
+	// Add new stage, instead of default one
+	stage := apigw.AddStage(jsii.String(prefix+"stage"), &apigateway.HttpStageOptions{
+		StageName:   jsii.String("prod"),
+		AutoDeploy:  jsii.Bool(true),
+		Description: jsii.String("Production stage"),
 		Throttle: &apigateway.ThrottleSettings{
-			BurstLimit: jsii.Number(101),
-			RateLimit:  jsii.Number(152),
+			BurstLimit: jsii.Number(burstLimit),
+			RateLimit:  jsii.Number(rateLimit),
 		},
 	})
 
@@ -72,14 +81,14 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	// Output API gateway URL
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"apigw URL"),
-		&awscdk.CfnOutputProps{Value: apigw.Url(),
+		&awscdk.CfnOutputProps{Value: stage.Url(),
 			Description: jsii.String("API Gateway endpoint")},
 	)
 
 	// Output DynamoDB name
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"dynamodb-name"),
-		&awscdk.CfnOutputProps{Value: table.TableArn(),
+		&awscdk.CfnOutputProps{Value: table.TableName(),
 			Description: jsii.String("DynamoDB name")},
 	)
 	return stack
@@ -115,7 +124,7 @@ func main() {
 
 	app := awscdk.NewApp(&awscdk.AppProps{})
 
-	NewCdkStack(app, "ValidatorStack", &CdkStackProps{
+	NewCdkStack(app, prefix+"stack", &CdkStackProps{
 		awscdk.StackProps{
 			Env: env(),
 		},
