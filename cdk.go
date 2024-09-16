@@ -33,6 +33,18 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
+	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
+		PartitionKey: &dynamodb.Attribute{
+			Name: jsii.String("RequestId"),
+			Type: dynamodb.AttributeType_STRING,
+		},
+		RemovalPolicy: "DESTROY",
+	})
+
+	envVars := map[string]*string{
+		"JWTLOG": table.TableName(),
+	}
+
 	// Http Apigateway
 	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{
 		CreateDefaultStage: jsii.Bool(false), // Create own stage below
@@ -50,14 +62,14 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	})
 
 	// Create lambda authorizer function
-	authorizer := createFunc(stack, "authorizer", "lambda/auth")
+	authorizer := createFunc(stack, "authorizer", "lambda/auth", &envVars)
 
 	lambdaAUthorizer := authorizers.NewHttpLambdaAuthorizer(jsii.String("authorizer-func"), authorizer,
 		&authorizers.HttpLambdaAuthorizerProps{ResponseTypes: &[]authorizers.HttpLambdaResponseType{
 			authorizers.HttpLambdaResponseType_SIMPLE,
 		}})
 
-	handler := createFunc(stack, "handler", "lambda/app")
+	handler := createFunc(stack, "handler", "lambda/app", &envVars)
 
 	functionIntg := integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), handler,
 		&integrations.HttpLambdaIntegrationProps{
@@ -71,12 +83,8 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Authorizer:  lambdaAUthorizer,
 	})
 
-	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
-		PartitionKey: &dynamodb.Attribute{
-			Name: jsii.String("pk"),
-			Type: dynamodb.AttributeType_STRING,
-		},
-	})
+	table.GrantReadWriteData(authorizer)
+	table.GrantReadWriteData(handler)
 
 	// Output API gateway URL
 	awscdk.NewCfnOutput(
@@ -95,7 +103,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 }
 
 // Create aws lambda function from given source adn with given name
-func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Function {
+func createFunc(stack awscdk.Stack, name string, sourcePath string, env *map[string]*string) awslambda.Function {
 	return awslambda.NewFunction(stack, jsii.String(prefix+name),
 		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
@@ -113,8 +121,9 @@ func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Fu
 					},
 				},
 			}),
-			Handler: jsii.String("index.main"),
-			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
+			Handler:     jsii.String("index.main"),
+			Timeout:     awscdk.Duration_Seconds(jsii.Number(30)),
+			Environment: env,
 		},
 	)
 }
