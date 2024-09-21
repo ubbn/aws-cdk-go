@@ -145,14 +145,14 @@ func main() {
 // env determines the AWS environment region in which our stack is to
 // be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 func env() *awscdk.Environment {
-	// Read AWS_REGION env var
+	// Read region from custom environment variable AWS_REGION
 	region, isPresent := os.LookupEnv("AWS_REGION")
 	if !isPresent {
 		// Read region of chosen cdk CLI profile or fallback to default profile
-		region = os.Getenv("CDK_DEFAULT_REGION")
+		region = defaultRegion
 	}
 
-	fmt.Println("Deploying to region: ", region)
+	fmt.Println("Applying to region: ", region)
 
 	return &awscdk.Environment{
 		Region: jsii.String(region),
