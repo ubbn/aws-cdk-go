@@ -8,6 +8,7 @@ import (
 	apigateway "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2"
 	authorizers "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2authorizers"
 	integrations "github.com/aws/aws-cdk-go/awscdk/v2/awsapigatewayv2integrations"
+	dynamodb "github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3assets"
 	"github.com/aws/constructs-go/constructs/v10"
@@ -17,6 +18,8 @@ import (
 const (
 	prefix        = "jwt-"
 	defaultRegion = "eu-west-1"
+	burstLimit    = 50  // Limit concurrent requests processing
+	rateLimit     = 100 // Limit incoming requests when burst is taking an effect
 )
 
 type CdkStackProps struct {
@@ -31,7 +34,20 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
 	// Http Apigateway
-	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{})
+	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{
+		CreateDefaultStage: jsii.Bool(false), // Create own stage below
+	})
+
+	// Add new stage, instead of default one
+	stage := apigw.AddStage(jsii.String(prefix+"stage"), &apigateway.HttpStageOptions{
+		StageName:   jsii.String("prod"),
+		AutoDeploy:  jsii.Bool(true),
+		Description: jsii.String("Production stage"),
+		Throttle: &apigateway.ThrottleSettings{
+			BurstLimit: jsii.Number(burstLimit),
+			RateLimit:  jsii.Number(rateLimit),
+		},
+	})
 
 	// Create lambda authorizer function
 	authorizer := createFunc(stack, "authorizer", "lambda/auth")
@@ -55,13 +71,26 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Authorizer:  lambdaAUthorizer,
 	})
 
+	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
+		PartitionKey: &dynamodb.Attribute{
+			Name: jsii.String("pk"),
+			Type: dynamodb.AttributeType_STRING,
+		},
+	})
+
 	// Output API gateway URL
 	awscdk.NewCfnOutput(
 		stack, jsii.String(prefix+"apigw URL"),
-		&awscdk.CfnOutputProps{Value: apigw.Url(),
+		&awscdk.CfnOutputProps{Value: stage.Url(),
 			Description: jsii.String("API Gateway endpoint")},
 	)
 
+	// Output DynamoDB name
+	awscdk.NewCfnOutput(
+		stack, jsii.String(prefix+"dynamodb-name"),
+		&awscdk.CfnOutputProps{Value: table.TableName(),
+			Description: jsii.String("DynamoDB name")},
+	)
 	return stack
 }
 
@@ -95,7 +124,7 @@ func main() {
 
 	app := awscdk.NewApp(&awscdk.AppProps{})
 
-	NewCdkStack(app, "ValidatorStack", &CdkStackProps{
+	NewCdkStack(app, prefix+"stack", &CdkStackProps{
 		awscdk.StackProps{
 			Env: env(),
 		},
