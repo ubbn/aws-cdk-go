@@ -33,6 +33,18 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
+	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
+		PartitionKey: &dynamodb.Attribute{
+			Name: jsii.String("RequestId"),
+			Type: dynamodb.AttributeType_STRING,
+		},
+		RemovalPolicy: "DESTROY",
+	})
+
+	envVars := map[string]*string{
+		"JWTTABLE": table.TableName(),
+	}
+
 	// Http Apigateway
 	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{
 		CreateDefaultStage: jsii.Bool(false), // Create own stage below
@@ -50,14 +62,14 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	})
 
 	// Create lambda authorizer function
-	authorizer := createFunc(stack, "authorizer", "lambda/auth")
+	authorizer := createFunc(stack, "authorizer", "auth", &envVars)
 
 	lambdaAUthorizer := authorizers.NewHttpLambdaAuthorizer(jsii.String("authorizer-func"), authorizer,
 		&authorizers.HttpLambdaAuthorizerProps{ResponseTypes: &[]authorizers.HttpLambdaResponseType{
 			authorizers.HttpLambdaResponseType_SIMPLE,
 		}})
 
-	handler := createFunc(stack, "handler", "lambda/app")
+	handler := createFunc(stack, "handler", "app", &envVars)
 
 	functionIntg := integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), handler,
 		&integrations.HttpLambdaIntegrationProps{
@@ -71,12 +83,8 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Authorizer:  lambdaAUthorizer,
 	})
 
-	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
-		PartitionKey: &dynamodb.Attribute{
-			Name: jsii.String("pk"),
-			Type: dynamodb.AttributeType_STRING,
-		},
-	})
+	table.GrantReadWriteData(authorizer)
+	table.GrantReadWriteData(handler)
 
 	// Output API gateway URL
 	awscdk.NewCfnOutput(
@@ -95,11 +103,11 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 }
 
 // Create aws lambda function from given source adn with given name
-func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Function {
+func createFunc(stack awscdk.Stack, name string, sourcePath string, env *map[string]*string) awslambda.Function {
 	return awslambda.NewFunction(stack, jsii.String(prefix+name),
 		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Code: awslambda.Code_FromAsset(jsii.String(sourcePath), &awss3assets.AssetOptions{
+			Code: awslambda.Code_FromAsset(jsii.String("lambda"), &awss3assets.AssetOptions{
 				Bundling: &awscdk.BundlingOptions{
 					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
 					Environment: &map[string]*string{
@@ -109,12 +117,13 @@ func createFunc(stack awscdk.Stack, name string, sourcePath string) awslambda.Fu
 					Command: &[]*string{
 						jsii.String("bash"),
 						jsii.String("-c"),
-						jsii.String("go build -o /asset-output"),
+						jsii.String("cd " + sourcePath + " && go build -o /asset-output"),
 					},
 				},
 			}),
-			Handler: jsii.String("index.main"),
-			Timeout: awscdk.Duration_Seconds(jsii.Number(30)),
+			Handler:     jsii.String("index.main"),
+			Timeout:     awscdk.Duration_Seconds(jsii.Number(30)),
+			Environment: env,
 		},
 	)
 }
@@ -136,14 +145,14 @@ func main() {
 // env determines the AWS environment region in which our stack is to
 // be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 func env() *awscdk.Environment {
-	// Read AWS_REGION env var
+	// Read region from custom environment variable AWS_REGION
 	region, isPresent := os.LookupEnv("AWS_REGION")
 	if !isPresent {
 		// Read region of chosen cdk CLI profile or fallback to default profile
-		region = os.Getenv("CDK_DEFAULT_REGION")
+		region = defaultRegion
 	}
 
-	fmt.Println("Deploying to region: ", region)
+	fmt.Println("Applying to region: ", region)
 
 	return &awscdk.Environment{
 		Region: jsii.String(region),

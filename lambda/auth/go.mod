@@ -1,5 +1,15 @@
 module bootstrap
 
-go 1.19
+go 1.22.3
 
-require github.com/aws/aws-lambda-go v1.37.0
+replace ubbn.com/utils => ../utils
+
+require (
+	github.com/aws/aws-lambda-go v1.47.0
+	ubbn.com/utils v0.0.0-00010101000000-000000000000
+)
+
+require (
+	github.com/aws/aws-sdk-go v1.55.5 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+)

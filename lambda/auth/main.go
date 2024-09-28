@@ -2,20 +2,19 @@ package main
 
 import (
 	"context"
-	"log"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"ubbn.com/utils"
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2CustomAuthorizerSimpleResponse, error) {
-
-	log.Println("Full req: ", req)
-	log.Println("Full ctx: ", req.RequestContext)
-	log.Println("RequestId: ", req.RequestContext.RequestID)
-	log.Println("SourceIP: ", req.RequestContext.HTTP.SourceIP)
-	log.Println("Epoch: ", req.RequestContext.TimeEpoch)
-	log.Println("Authentication part: ", req.Headers["authorization"])
+	utils.InsertItem(&utils.Item{
+		RequestId: req.RequestContext.RequestID,
+		SourceIp:  req.RequestContext.HTTP.SourceIP,
+		Auth:      req.Headers["authorization"],
+		Epoch:     req.RequestContext.TimeEpoch,
+	})
 
 	return events.APIGatewayV2CustomAuthorizerSimpleResponse{
 		IsAuthorized: true,
