@@ -1,4 +1,4 @@
-module ubbn.com/utils
+module ubbn.com/common
 
 go 1.22.3
 

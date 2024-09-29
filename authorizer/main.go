@@ -5,11 +5,11 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"ubbn.com/utils"
+	"ubbn.com/common"
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2CustomAuthorizerSimpleResponse, error) {
-	utils.InsertItem(&utils.Item{
+	common.InsertItem(&common.Item{
 		RequestId: req.RequestContext.RequestID,
 		SourceIp:  req.RequestContext.HTTP.SourceIP,
 		Auth:      req.Headers["authorization"],

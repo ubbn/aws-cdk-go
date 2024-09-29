@@ -62,14 +62,14 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	})
 
 	// Create lambda authorizer function
-	authorizer := createFunc(stack, "authorizer", "auth", &envVars)
+	authorizer := createFunc(stack, "authorizer", &envVars)
 
 	lambdaAUthorizer := authorizers.NewHttpLambdaAuthorizer(jsii.String("authorizer-func"), authorizer,
 		&authorizers.HttpLambdaAuthorizerProps{ResponseTypes: &[]authorizers.HttpLambdaResponseType{
 			authorizers.HttpLambdaResponseType_SIMPLE,
 		}})
 
-	handler := createFunc(stack, "handler", "app", &envVars)
+	handler := createFunc(stack, "handler", &envVars)
 
 	functionIntg := integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), handler,
 		&integrations.HttpLambdaIntegrationProps{
@@ -103,11 +103,11 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 }
 
 // Create aws lambda function from given source adn with given name
-func createFunc(stack awscdk.Stack, name string, sourcePath string, env *map[string]*string) awslambda.Function {
+func createFunc(stack awscdk.Stack, name string, env *map[string]*string) awslambda.Function {
 	return awslambda.NewFunction(stack, jsii.String(prefix+name),
 		&awslambda.FunctionProps{
 			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Code: awslambda.Code_FromAsset(jsii.String("lambda"), &awss3assets.AssetOptions{
+			Code: awslambda.Code_FromAsset(jsii.String("./"), &awss3assets.AssetOptions{
 				Bundling: &awscdk.BundlingOptions{
 					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
 					Environment: &map[string]*string{
@@ -117,7 +117,7 @@ func createFunc(stack awscdk.Stack, name string, sourcePath string, env *map[str
 					Command: &[]*string{
 						jsii.String("bash"),
 						jsii.String("-c"),
-						jsii.String("cd " + sourcePath + " && go build -o /asset-output"),
+						jsii.String("cd " + name + " && go build -o /asset-output"),
 					},
 				},
 			}),
