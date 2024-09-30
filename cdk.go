@@ -27,12 +27,13 @@ type CdkStackProps struct {
 }
 
 func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) awscdk.Stack {
-	var sprops awscdk.StackProps
+	var stackProps awscdk.StackProps
 	if props != nil {
-		sprops = props.StackProps
+		stackProps = props.StackProps
 	}
-	stack := awscdk.NewStack(scope, &id, &sprops)
+	stack := awscdk.NewStack(scope, &id, &stackProps)
 
+	// Create DynamoTable for storing auth request
 	table := dynamodb.NewTableV2(stack, jsii.String(prefix+"history"), &dynamodb.TablePropsV2{
 		PartitionKey: &dynamodb.Attribute{
 			Name: jsii.String("RequestId"),
@@ -45,12 +46,12 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		"JWTTABLE": table.TableName(),
 	}
 
-	// Http Apigateway
+	// Create Http Apigateway
 	apigw := apigateway.NewHttpApi(stack, jsii.String(prefix+"authorized-http-apigateway"), &apigateway.HttpApiProps{
 		CreateDefaultStage: jsii.Bool(false), // Create own stage below
 	})
 
-	// Add new stage, instead of default one
+	// Add new stage with custom throttling parameter, instead of default one
 	stage := apigw.AddStage(jsii.String(prefix+"stage"), &apigateway.HttpStageOptions{
 		StageName:   jsii.String("prod"),
 		AutoDeploy:  jsii.Bool(true),
@@ -63,14 +64,13 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 
 	// Create lambda authorizer function
 	authorizer := createFunc(stack, "authorizer", &envVars)
-
 	lambdaAUthorizer := authorizers.NewHttpLambdaAuthorizer(jsii.String("authorizer-func"), authorizer,
 		&authorizers.HttpLambdaAuthorizerProps{ResponseTypes: &[]authorizers.HttpLambdaResponseType{
 			authorizers.HttpLambdaResponseType_SIMPLE,
 		}})
 
+	// Create lambda handler function
 	handler := createFunc(stack, "handler", &envVars)
-
 	functionIntg := integrations.NewHttpLambdaIntegration(jsii.String(prefix+"integration"), handler,
 		&integrations.HttpLambdaIntegrationProps{
 			Timeout: awscdk.Duration_Seconds(jsii.Number(25)),
@@ -83,6 +83,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 		Authorizer:  lambdaAUthorizer,
 	})
 
+	// Allow full access for funtions to dynamodb
 	table.GrantReadWriteData(authorizer)
 	table.GrantReadWriteData(handler)
 
@@ -104,28 +105,33 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 
 // Create aws lambda function from given source adn with given name
 func createFunc(stack awscdk.Stack, name string, env *map[string]*string) awslambda.Function {
-	return awslambda.NewFunction(stack, jsii.String(prefix+name),
-		&awslambda.FunctionProps{
-			Runtime: awslambda.Runtime_PROVIDED_AL2023(),
-			Code: awslambda.Code_FromAsset(jsii.String("./"), &awss3assets.AssetOptions{
-				Bundling: &awscdk.BundlingOptions{
-					Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
-					Environment: &map[string]*string{
-						"GOCACHE": jsii.String("/tmp/.cache"),
-						"GOPATH":  jsii.String("/tmp/go"),
-					},
-					Command: &[]*string{
-						jsii.String("bash"),
-						jsii.String("-c"),
-						jsii.String("cd " + name + " && go build -o /asset-output"),
-					},
-				},
-			}),
-			Handler:     jsii.String("index.main"),
-			Timeout:     awscdk.Duration_Seconds(jsii.Number(30)),
-			Environment: env,
+	// Build functions using AL docker image locally
+	bundleOptions := awscdk.BundlingOptions{
+		Image: awslambda.Runtime_PROVIDED_AL2023().BundlingImage(),
+		Environment: &map[string]*string{
+			"GOCACHE": jsii.String("/tmp/.cache"),
+			"GOPATH":  jsii.String("/tmp/go"),
 		},
-	)
+		Command: &[]*string{
+			jsii.String("bash"),
+			jsii.String("-c"),
+			jsii.String("cd " + name + " && go build -o /asset-output"),
+		},
+	}
+
+	// Set function's runtime properties
+	functionProps := awslambda.FunctionProps{
+		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
+		Code: awslambda.Code_FromAsset(jsii.String("./"), &awss3assets.AssetOptions{
+			Bundling: &bundleOptions,
+		}),
+		Handler:     jsii.String("index.main"),
+		Timeout:     awscdk.Duration_Seconds(jsii.Number(30)),
+		Environment: env,
+	}
+
+	id := jsii.String(prefix + name)
+	return awslambda.NewFunction(stack, id, &functionProps)
 }
 
 func main() {

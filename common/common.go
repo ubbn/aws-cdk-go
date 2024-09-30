@@ -11,10 +11,10 @@ import (
 )
 
 type Item struct {
-	RequestId string
-	SourceIp  string
-	Auth      string
-	Epoch     int64
+	RequestId string `json:"text_prompts"`
+	SourceIp  string `json:"source_ip"`
+	Auth      string `json:"auth"`
+	Epoch     int64  `json:"epoch"`
 }
 
 // InsertItem inserts an item into the DynamoDB table
