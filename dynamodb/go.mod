@@ -1,4 +1,4 @@
-module ubbn.com/common
+module ubbn.com/dynamodb
 
 go 1.22.3
 

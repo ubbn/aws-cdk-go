@@ -5,11 +5,11 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"ubbn.com/common"
+	"ubbn.com/dynamodb"
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2CustomAuthorizerSimpleResponse, error) {
-	common.InsertItem(&common.Item{
+	dynamodb.InsertItem(&dynamodb.Item{
 		RequestId: req.RequestContext.RequestID,
 		SourceIp:  req.RequestContext.HTTP.SourceIP,
 		Auth:      req.Headers["authorization"],

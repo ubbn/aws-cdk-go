@@ -1,5 +1,6 @@
 {
   "app": "go mod download && go run cdk.go",
+  "output": ".cdk.out",
   "watch": {
     "include": [
       "**"
